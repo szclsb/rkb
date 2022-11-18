@@ -1,18 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.control.RadioButton?>
-<?import javafx.scene.control.TextArea?>
-<?import javafx.scene.control.TextField?>
-<?import javafx.scene.control.ToggleGroup?>
-<?import javafx.scene.layout.BorderPane?>
-<?import javafx.scene.layout.ColumnConstraints?>
-<?import javafx.scene.layout.GridPane?>
-<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
 
-<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ch.szclsb.rkb.app.FxController">
+<BorderPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="400.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="ch.szclsb.rkb.app.FxController">
    <center>
-      <TextArea prefHeight="200.0" prefWidth="200.0" BorderPane.alignment="CENTER" />
+      <TextArea fx:id="area" prefHeight="200.0" prefWidth="200.0" BorderPane.alignment="CENTER" />
    </center>
    <top>
       <GridPane hgap="5.0">
@@ -20,6 +13,7 @@
             <ColumnConstraints hgrow="SOMETIMES" minWidth="20.0" />
           <ColumnConstraints hgrow="SOMETIMES" minWidth="20.0" />
           <ColumnConstraints hgrow="ALWAYS" minWidth="20.0" />
+            <ColumnConstraints hgrow="ALWAYS" minWidth="20.0" prefWidth="100.0" />
         </columnConstraints>
         <rowConstraints>
           <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
@@ -27,15 +21,17 @@
         </rowConstraints>
          <children>
             <Label fx:id="remoteAddressLabel" GridPane.columnIndex="1" />
-            <Label fx:id="remotePortLabel" GridPane.columnIndex="1" GridPane.rowIndex="1" />
-            <TextField fx:id="remoteAddressInput" GridPane.columnIndex="2" />
+            <Label fx:id="remotePortLabel" GridPane.columnIndex="2" />
+            <TextField fx:id="remoteAddressInput" GridPane.columnIndex="1" GridPane.rowIndex="1" />
             <TextField fx:id="remotePortInput" GridPane.columnIndex="2" GridPane.rowIndex="1" />
-            <RadioButton fx:id="receiveMode" mnemonicParsing="false" GridPane.rowIndex="1">
+            <RadioButton fx:id="receiveMode" mnemonicParsing="false" onAction="#onReceiveMode" GridPane.rowIndex="1">
                <toggleGroup>
                   <ToggleGroup fx:id="mode" />
                </toggleGroup>
             </RadioButton>
-            <RadioButton fx:id="sendMode" mnemonicParsing="false" toggleGroup="$mode" />
+            <RadioButton fx:id="sendMode" mnemonicParsing="false" onAction="#onSendMode" toggleGroup="$mode" />
+            <Button fx:id="action" mnemonicParsing="false" onAction="#onAction" text="Button" GridPane.columnIndex="3" GridPane.rowIndex="1" />
+            <Label fx:id="state" GridPane.columnIndex="3" />
          </children>
       </GridPane>
    </top>
