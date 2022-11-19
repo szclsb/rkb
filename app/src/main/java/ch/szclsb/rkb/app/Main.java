@@ -19,13 +19,22 @@ public class Main extends Application {
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        var root = (Parent) FXMLLoader.load(find("main.fxml"));
+        var loader = new FXMLLoader(find("main.fxml"));
+        var root = (Parent) loader.load();
+        var controller = (FxController) loader.getController();
 
         var scene = new Scene(root);
 //        scene.getStylesheets().add(getClass().getResource("styles.css").toExternalForm());
 
         primaryStage.setTitle("Remote Keyboard");
         primaryStage.setScene(scene);
+        primaryStage.setOnCloseRequest(event -> {
+            try {
+                controller.terminate();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
         primaryStage.show();
     }
 

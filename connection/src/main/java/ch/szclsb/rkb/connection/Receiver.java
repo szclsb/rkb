@@ -29,7 +29,7 @@ public class Receiver implements AutoCloseable {
         var address = new InetSocketAddress(host, port);
         CompletableFuture.runAsync(() -> {
             try (var clientChannel = SocketChannel.open()) {
-                clientChannel.socket().bind(address);
+                clientChannel.socket().connect(address);
                 if (!channel.compareAndSet(null, clientChannel)) {
                     errorHandler.accept(new Exception("already connected"));
                 }

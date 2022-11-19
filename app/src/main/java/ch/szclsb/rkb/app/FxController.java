@@ -1,5 +1,7 @@
 package ch.szclsb.rkb.app;
 
+import ch.szclsb.rkb.connection.Receiver;
+import ch.szclsb.rkb.connection.Sender;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.Property;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -7,6 +9,9 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyEvent;
+
+import java.util.function.Consumer;
 
 public class FxController {
     @FXML
@@ -30,8 +35,14 @@ public class FxController {
 
     private final BooleanProperty connectedProperty;
     private final Property<Mode> modeProperty;
+    private final Sender sender;
+    private final Receiver receiver;
 
     public FxController() {
+        Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
+        this.sender = new Sender(errorHandler);
+        this.receiver = new Receiver(System.out::println, errorHandler);
+
         this.modeProperty = new SimpleObjectProperty<>();
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
             action.setText(newValue.getActionText());
@@ -41,6 +52,7 @@ public class FxController {
         connectedProperty.addListener((observable, oldValue, newValue) -> {
             state.setText(newValue ? "connected" : "disconnected");
             state.setDisable(!newValue || !Mode.SEND.equals(modeProperty.getValue()));
+            area.setDisable(!newValue || !Mode.SEND.equals(modeProperty.getValue()));
         });
     }
 
@@ -70,11 +82,14 @@ public class FxController {
     private void onAction(ActionEvent event) {
         switch (modeProperty.getValue()) {
             case SEND -> {
-                System.out.println("send");
+                var port = Integer.parseInt(remotePortInput.getText());
+                sender.open(port);
                 connectedProperty.setValue(true);
             }
             case RECEIVE -> {
-                System.out.println("receive");
+                var host = remoteAddressInput.getText();
+                var port = Integer.parseInt(remotePortInput.getText());
+                receiver.connect(host, port);
                 connectedProperty.setValue(true);
             }
             default -> {
@@ -82,5 +97,20 @@ public class FxController {
                 connectedProperty.setValue(false);
             }
         }
+    }
+
+    @FXML
+    private void onKeyDown(KeyEvent event) {
+        sender.send(event.getCode().getCode());
+    }
+
+    /**
+     * Release acquired resources.
+     *
+     * @throws Exception
+     */
+    public void terminate() throws Exception {
+        sender.close();
+        receiver.close();
     }
 }
