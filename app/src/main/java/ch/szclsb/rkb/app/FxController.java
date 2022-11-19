@@ -1,10 +1,9 @@
 package ch.szclsb.rkb.app;
 
-import ch.szclsb.rkb.connection.Receiver;
-import ch.szclsb.rkb.connection.Sender;
-import javafx.beans.property.BooleanProperty;
+import ch.szclsb.rkb.comm.ChannelState;
+import ch.szclsb.rkb.comm.impl.Receiver;
+import ch.szclsb.rkb.comm.impl.Sender;
 import javafx.beans.property.Property;
-import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -33,26 +32,24 @@ public class FxController {
     @FXML
     private TextArea area;
 
-    private final BooleanProperty connectedProperty;
     private final Property<Mode> modeProperty;
     private final Sender sender;
     private final Receiver receiver;
+    private final Consumer<Integer> vkCodeHandler;
 
     public FxController() {
-        Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
-        this.sender = new Sender(errorHandler);
-        this.receiver = new Receiver(System.out::println, errorHandler);
-
+        this.vkCodeHandler = System.out::println;
         this.modeProperty = new SimpleObjectProperty<>();
+        Consumer<ChannelState> stateHandler = state1 -> {
+            state.setText(state1.name());
+            area.setDisable(!(this.modeProperty.getValue().equals(Mode.SEND) && state1.equals(ChannelState.CONNECTED)));
+        };
+        Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
+        this.sender = new Sender(errorHandler, stateHandler);
+        this.receiver = new Receiver(errorHandler, stateHandler);
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
             action.setText(newValue.getActionText());
             remoteAddressInput.setDisable(!newValue.equals(Mode.RECEIVE));
-        });
-        this.connectedProperty = new SimpleBooleanProperty(false);
-        connectedProperty.addListener((observable, oldValue, newValue) -> {
-            state.setText(newValue ? "connected" : "disconnected");
-            state.setDisable(!newValue || !Mode.SEND.equals(modeProperty.getValue()));
-            area.setDisable(!newValue || !Mode.SEND.equals(modeProperty.getValue()));
         });
     }
 
@@ -62,7 +59,7 @@ public class FxController {
         sendMode.setText("send");
         receiveMode.setText("receive");
 
-        state.setText("disconnected");
+        state.setText(ChannelState.DISCONNECTED.name());
         area.setDisable(true);
 
         sendMode.fire();
@@ -84,17 +81,14 @@ public class FxController {
             case SEND -> {
                 var port = Integer.parseInt(remotePortInput.getText());
                 sender.open(port);
-                connectedProperty.setValue(true);
             }
             case RECEIVE -> {
                 var host = remoteAddressInput.getText();
                 var port = Integer.parseInt(remotePortInput.getText());
-                receiver.connect(host, port);
-                connectedProperty.setValue(true);
+                receiver.connect(host, port, vkCodeHandler);
             }
             default -> {
                 System.out.println("error");
-                connectedProperty.setValue(false);
             }
         }
     }
