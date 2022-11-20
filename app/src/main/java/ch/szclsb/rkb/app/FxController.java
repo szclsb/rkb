@@ -28,7 +28,7 @@ public class FxController {
     @FXML
     private Button action;
     @FXML
-    private Label state;
+    private Label stateLabel;
     @FXML
     private TextArea area;
 
@@ -38,13 +38,16 @@ public class FxController {
 
     public FxController() {
         this.modeProperty = new SimpleObjectProperty<>();
-        Consumer<ChannelState> stateHandler = state1 -> {
-            state.setText(state1.name());
-            area.setDisable(!(this.modeProperty.getValue().equals(Mode.SEND) && state1.equals(ChannelState.CONNECTED)));
-        };
         Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
-        this.sender = new Sender(errorHandler, stateHandler);
-        this.receiver = new Receiver(errorHandler, stateHandler);
+        this.sender = new Sender(errorHandler);
+        this.sender.addStateChangeListener(state -> {
+            stateLabel.setText(state.name());
+            area.setDisable(state != ChannelState.CONNECTED);
+        });
+        this.receiver = new Receiver(errorHandler);
+        this.receiver.addStateChangeListener(state -> {
+            stateLabel.setText(state.name());
+        });
         this.receiver.addVkCodeListener(System.out::println);
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
             action.setText(newValue.getActionText());
@@ -58,7 +61,7 @@ public class FxController {
         sendMode.setText("send");
         receiveMode.setText("receive");
 
-        state.setText(ChannelState.DISCONNECTED.name());
+        stateLabel.setText(ChannelState.DISCONNECTED.name());
         area.setDisable(true);
 
         sendMode.fire();

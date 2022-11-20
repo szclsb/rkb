@@ -5,7 +5,6 @@ import ch.szclsb.rkb.comm.IReceiver;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketOption;
 import java.nio.channels.SocketChannel;
 import java.util.Set;
 import java.util.concurrent.*;
@@ -13,20 +12,18 @@ import java.util.function.Consumer;
 
 public class Receiver extends AbstractChannel implements IReceiver {
     private final BlockingQueue<Integer> queue;
-    private final ExecutorService service;
     private final Consumer<Throwable> errorHandler;
     private final Set<VkCodeHandler> listeners;
 
     private volatile SocketChannel channel;
 
-    public Receiver(Consumer<Throwable> errorHandler, Consumer<ChannelState> stateChangeListener) {
-        super(stateChangeListener);
+    public Receiver(Consumer<Throwable> errorHandler) {
+        super();
         this.queue = new LinkedBlockingDeque<>(64);
-        this.service = Executors.newCachedThreadPool();
         this.errorHandler = errorHandler;
         this.listeners = ConcurrentHashMap.newKeySet();
 
-        CompletableFuture.runAsync(() -> {
+        runAsync(() -> {
             try {
                 int vkCode;
                 while ((vkCode = queue.take()) != 0) {
@@ -41,7 +38,7 @@ public class Receiver extends AbstractChannel implements IReceiver {
             } catch (Exception e) {
                 errorHandler.accept(e);
             }
-        }, service);
+        });
     }
 
     @Override
@@ -52,7 +49,7 @@ public class Receiver extends AbstractChannel implements IReceiver {
     @Override
     public void connect(String host, int port) {
         var address = new InetSocketAddress(host, port);
-        CompletableFuture.runAsync(() -> {
+        runAsync(() -> {
             if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.CONNECTING)) {
                 try (var clientChannel = SocketChannel.open()) {
                     clientChannel.connect(address);
@@ -68,7 +65,7 @@ public class Receiver extends AbstractChannel implements IReceiver {
             } else {
                 errorHandler.accept(new Exception("already connected"));
             }
-        }, service);
+        });
     }
 
     @Override
@@ -88,6 +85,6 @@ public class Receiver extends AbstractChannel implements IReceiver {
         disconnect();
         queue.clear();
         queue.add(0);
-        service.close();
+        super.close();
     }
 }

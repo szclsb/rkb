@@ -23,32 +23,29 @@ public class CommIT {
         var sendLatch = new CountDownLatch(2);
         var assertExchanger = new Exchanger<Integer>();
         Consumer<Throwable> errorHandler = t -> fail(t.getMessage());
-        try (var sender = new Sender(errorHandler, state -> {
-            System.out.printf("sender: %s\n", state.name());
-            if (state.equals(ChannelState.WAITING)) {
-                try {
-                    connectLatch.countDown();
-                } catch (Exception e) {
-                    fail(e.getMessage());
-                }
-            } else if (state.equals(ChannelState.CONNECTED)) {
-                try {
-                    sendLatch.countDown();
-                } catch (Exception e) {
-                    fail(e.getMessage());
-                }
-            }
-        })) {
-            try (var receiver = new Receiver(errorHandler, state -> {
-                System.out.printf("receiver: %s\n", state.name());
-                if (state.equals(ChannelState.CONNECTED)) {
+        try (var sender = new Sender(errorHandler)) {
+            try (var receiver = new Receiver(errorHandler)) {
+                sender.addStateChangeListener(state -> {
+                    System.out.printf("sender: %s\n", state.name());
                     try {
-                        sendLatch.countDown();
+                        switch (state) {
+                            case WAITING -> connectLatch.countDown();
+                            case CONNECTED -> sendLatch.countDown();
+                        }
                     } catch (Exception e) {
                         fail(e.getMessage());
                     }
-                }
-            })) {
+                });
+                receiver.addStateChangeListener(state -> {
+                    System.out.printf("receiver: %s\n", state.name());
+                    try {
+                        if (state.equals(ChannelState.CONNECTED)) {
+                            sendLatch.countDown();
+                        }
+                    } catch (Exception e) {
+                        fail(e.getMessage());
+                    }
+                });
                 receiver.addVkCodeListener(vkCode1 -> {
                     try {
                         assertExchanger.exchange(vkCode1, 5, TimeUnit.SECONDS);

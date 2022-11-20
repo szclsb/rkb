@@ -11,13 +11,11 @@ import java.util.function.Consumer;
 
 public class Sender extends AbstractChannel implements ISender {
     private final BlockingQueue<Integer> queue;
-    private final ExecutorService service;
     private final Consumer<Throwable> errorHandler;
 
-    public Sender(Consumer<Throwable> errorHandler, Consumer<ChannelState> stateChangeListener) {
-        super(stateChangeListener);
+    public Sender(Consumer<Throwable> errorHandler) {
+        super();
         this.queue = new LinkedBlockingDeque<>(64);
-        this.service = Executors.newCachedThreadPool();
         this.errorHandler = errorHandler;
     }
 
@@ -25,7 +23,7 @@ public class Sender extends AbstractChannel implements ISender {
     public void open(int port) {
         var address = new InetSocketAddress("localhost", port);
         // incoming connections
-        CompletableFuture.runAsync(() -> {
+        runAsync(() -> {
             if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.STARTING)) {
                 try (var serverChannel = ServerSocketChannel.open()) {
                     serverChannel.bind(address);
@@ -57,7 +55,7 @@ public class Sender extends AbstractChannel implements ISender {
             } else {
                 errorHandler.accept(new Exception("already connected"));
             }
-        }, service);
+        });
     }
 
     @Override
@@ -91,6 +89,6 @@ public class Sender extends AbstractChannel implements ISender {
     @Override
     public void close() throws Exception {
         stop();
-        service.close();
+        super.close();
     }
 }

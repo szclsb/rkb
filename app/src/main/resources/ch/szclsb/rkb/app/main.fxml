@@ -31,7 +31,7 @@
             </RadioButton>
             <RadioButton fx:id="sendMode" mnemonicParsing="false" onAction="#onSendMode" toggleGroup="$mode" />
             <Button fx:id="action" mnemonicParsing="false" onAction="#onAction" text="Button" GridPane.columnIndex="3" GridPane.rowIndex="1" />
-            <Label fx:id="state" GridPane.columnIndex="3" />
+            <Label fx:id="stateLabel" GridPane.columnIndex="3" />
          </children>
       </GridPane>
    </top>
