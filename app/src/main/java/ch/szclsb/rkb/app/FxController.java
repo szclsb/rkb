@@ -35,10 +35,8 @@ public class FxController {
     private final Property<Mode> modeProperty;
     private final Sender sender;
     private final Receiver receiver;
-    private final Consumer<Integer> vkCodeHandler;
 
     public FxController() {
-        this.vkCodeHandler = System.out::println;
         this.modeProperty = new SimpleObjectProperty<>();
         Consumer<ChannelState> stateHandler = state1 -> {
             state.setText(state1.name());
@@ -47,6 +45,7 @@ public class FxController {
         Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
         this.sender = new Sender(errorHandler, stateHandler);
         this.receiver = new Receiver(errorHandler, stateHandler);
+        this.receiver.addVkCodeListener(System.out::println);
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
             action.setText(newValue.getActionText());
             remoteAddressInput.setDisable(!newValue.equals(Mode.RECEIVE));
@@ -85,7 +84,7 @@ public class FxController {
             case RECEIVE -> {
                 var host = remoteAddressInput.getText();
                 var port = Integer.parseInt(remotePortInput.getText());
-                receiver.connect(host, port, vkCodeHandler);
+                receiver.connect(host, port);
             }
             default -> {
                 System.out.println("error");

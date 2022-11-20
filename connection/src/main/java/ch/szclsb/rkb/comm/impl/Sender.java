@@ -6,7 +6,6 @@ import ch.szclsb.rkb.comm.ChannelState;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
@@ -14,8 +13,6 @@ public class Sender extends AbstractChannel implements ISender {
     private final BlockingQueue<Integer> queue;
     private final ExecutorService service;
     private final Consumer<Throwable> errorHandler;
-    private volatile ServerSocketChannel serverChannel;
-    private volatile SocketChannel channel;
 
     public Sender(Consumer<Throwable> errorHandler, Consumer<ChannelState> stateChangeListener) {
         super(stateChangeListener);
@@ -29,29 +26,34 @@ public class Sender extends AbstractChannel implements ISender {
         var address = new InetSocketAddress("localhost", port);
         // incoming connections
         CompletableFuture.runAsync(() -> {
-            //todo: use NIO Selector
-            if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.WAITING)) {
+            if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.STARTING)) {
                 try (var serverChannel = ServerSocketChannel.open()) {
                     serverChannel.bind(address);
-                    this.serverChannel = serverChannel;
+                    updateState(ChannelState.WAITING);
                     while (getState() == ChannelState.WAITING) {
+                        // client connection
                         try (var clientChannel = serverChannel.accept()) {
-                            if (compareAndSetState(ChannelState.WAITING, ChannelState.CONNECTED)) {
-                                this.channel = clientChannel;
-                                while (!service.isTerminated()) {
-                                    var vkCode = queue.take();
-                                    writeToChannel(vkCode, clientChannel);
+                            if (compareAndSetState(ChannelState.WAITING, ChannelState.CONNECTING)) {
+                                queue.clear();
+                                // todo: validate client
+                                if (compareAndSetState(ChannelState.CONNECTING, ChannelState.CONNECTED)) {
+                                    int vkCode;
+                                    while ((vkCode = queue.take()) != 0) {
+                                        writeToChannel(vkCode, clientChannel);
+                                    }
                                 }
                             }
                         } catch (IOException e) {
                             errorHandler.accept(e);
+                        } finally {
+                            compareAndSetState(ChannelState.DISCONNECTING, ChannelState.WAITING);
                         }
-                        updateState(ChannelState.WAITING);
                     }
                 } catch (Exception e) {
                     errorHandler.accept(e);
+                } finally {
+                    updateState(ChannelState.DISCONNECTED);
                 }
-                updateState(ChannelState.DISCONNECTED);
             } else {
                 errorHandler.accept(new Exception("already connected"));
             }
@@ -60,31 +62,35 @@ public class Sender extends AbstractChannel implements ISender {
 
     @Override
     public void send(int vkCode) {
+        // vk 1 to 254  windows vkCodes;
+        // vk (-1) to (-254)  windows vkCodes;
+        if (vkCode == 0 || vkCode < -254 || vkCode > 254) {
+            throw new IllegalArgumentException("invalid vk code " + vkCode);
+        }
         queue.add(vkCode);
     }
 
     @Override
     public void disconnect() {
-        var state = getState();
-        if (state == ChannelState.CONNECTED) {
-            try {
-                this.channel.close();
-            } catch (IOException e) {
-                errorHandler.accept(e);
-            }
+        compareAndSetState(ChannelState.CONNECTING, ChannelState.DISCONNECTING); // abort during client validation
+        if (compareAndSetState(ChannelState.CONNECTED, ChannelState.DISCONNECTING)) {
+            queue.clear();
+            queue.add(0);
         }
-        if (state != ChannelState.DISCONNECTED) {
-            try {
-                this.serverChannel.close();
-            } catch (IOException e) {
-                errorHandler.accept(e);
-            }
+    }
+
+    @Override
+    public void stop() {
+        compareAndSetState(ChannelState.CONNECTING, ChannelState.TERMINATING); // abort during client validation
+        if (compareAndSetState(ChannelState.CONNECTED, ChannelState.TERMINATING)) {
+            queue.clear();
+            queue.add(0);
         }
     }
 
     @Override
     public void close() throws Exception {
+        stop();
         service.close();
-        disconnect();
     }
 }

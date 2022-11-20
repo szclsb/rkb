@@ -2,6 +2,10 @@ package ch.szclsb.rkb.comm;
 
 public enum ChannelState {
     DISCONNECTED,
+    STARTING,
     WAITING,
-    CONNECTED
+    CONNECTING,
+    CONNECTED,
+    DISCONNECTING,
+    TERMINATING
 }

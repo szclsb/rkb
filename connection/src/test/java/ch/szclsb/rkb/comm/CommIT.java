@@ -5,11 +5,7 @@ import ch.szclsb.rkb.comm.impl.Sender;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.*;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,28 +19,55 @@ public class CommIT {
     @Test
     public void testComm() throws Exception {
         var vkCode = 127;
-        var blocker = new CountDownLatch(1);
+        var connectLatch = new CountDownLatch(1);
+        var sendLatch = new CountDownLatch(2);
+        var assertExchanger = new Exchanger<Integer>();
         Consumer<Throwable> errorHandler = t -> fail(t.getMessage());
-        var sender = new Sender(errorHandler, state -> {
+        try (var sender = new Sender(errorHandler, state -> {
             System.out.printf("sender: %s\n", state.name());
-        });
-        var receiver = new Receiver(errorHandler, state -> {
-            System.out.printf("receiver: %s\n", state.name());
-        });
-        sender.open(port);
-        receiver.onReceive(vkCode1 -> {
-            assertEquals(vkCode, vkCode1);
-            try {
-                blocker.countDown();
-            } catch (Exception e) {
-                fail(e.getMessage());
+            if (state.equals(ChannelState.WAITING)) {
+                try {
+                    connectLatch.countDown();
+                } catch (Exception e) {
+                    fail(e.getMessage());
+                }
+            } else if (state.equals(ChannelState.CONNECTED)) {
+                try {
+                    sendLatch.countDown();
+                } catch (Exception e) {
+                    fail(e.getMessage());
+                }
             }
-        });
-        receiver.connect(host, port);
-        Thread.sleep(200);
-        sender.send(vkCode);
-        blocker.await(2, TimeUnit.SECONDS);
-        receiver.close();
-        sender.close();
+        })) {
+            try (var receiver = new Receiver(errorHandler, state -> {
+                System.out.printf("receiver: %s\n", state.name());
+                if (state.equals(ChannelState.CONNECTED)) {
+                    try {
+                        sendLatch.countDown();
+                    } catch (Exception e) {
+                        fail(e.getMessage());
+                    }
+                }
+            })) {
+                receiver.addVkCodeListener(vkCode1 -> {
+                    try {
+                        assertExchanger.exchange(vkCode1, 5, TimeUnit.SECONDS);
+                    } catch (Exception e) {
+                        fail(e.getMessage());
+                    }
+                });
+                sender.open(port);
+                if (!connectLatch.await(5, TimeUnit.SECONDS)) {
+                    throw new TimeoutException();
+                }
+                receiver.connect(host, port);
+                if (!sendLatch.await(5, TimeUnit.SECONDS)) {
+                    throw new TimeoutException();
+                }
+                sender.send(vkCode);
+                int receivedCode = assertExchanger.exchange(null, 5, TimeUnit.SECONDS);
+                assertEquals(vkCode, receivedCode);
+            }
+        }
     }
 }

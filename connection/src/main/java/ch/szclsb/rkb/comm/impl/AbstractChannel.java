@@ -45,9 +45,14 @@ public abstract class AbstractChannel implements IChannel {
     }
 
     protected void readFromChannel(VkCodeHandler handler, SocketChannel channel) throws Exception {
-        while (channel.read(buffer) != -1) {
-            var vkCode = buffer.getInt();
-            handler.invoke(vkCode);
+        int size;
+        while ((size = channel.read(buffer)) != -1) {
+            buffer.rewind();
+            //todo improve
+            if (size == 4) {
+                var vkCode = buffer.getInt();
+                handler.invoke(vkCode);
+            }
         }
     }
 }
