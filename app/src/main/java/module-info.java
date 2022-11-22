@@ -1,4 +1,4 @@
-module rkb.app.main {
+module ch.szclsb.rkb.app {
     requires javafx.controls;
     requires javafx.fxml;
 
