@@ -28,7 +28,7 @@ public class FxController {
     @FXML
     private Button action;
     @FXML
-    private Label stateLabel;
+    private CommState stateComponent;
     @FXML
     private TextArea area;
 
@@ -41,12 +41,12 @@ public class FxController {
         Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
         this.sender = new Sender(errorHandler);
         this.sender.addStateChangeListener(state -> {
-            stateLabel.setText(state.name());
+            stateComponent.stateObserverProperty().set(state);
             area.setDisable(state != ChannelState.CONNECTED);
         });
         this.receiver = new Receiver(errorHandler);
         this.receiver.addStateChangeListener(state -> {
-            stateLabel.setText(state.name());
+            stateComponent.stateObserverProperty().set(state);
         });
         this.receiver.addVkCodeListener(System.out::println);
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
@@ -60,8 +60,6 @@ public class FxController {
         remotePortLabel.setText("remote port");
         sendMode.setText("send");
         receiveMode.setText("receive");
-
-        stateLabel.setText(ChannelState.DISCONNECTED.name());
         area.setDisable(true);
 
         sendMode.fire();
