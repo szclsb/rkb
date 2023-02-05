@@ -60,7 +60,7 @@ public class Receiver extends AbstractChannel implements IReceiver {
                 } catch (Exception e) {
                     errorHandler.accept(e);
                 } finally {
-                    updateState(ChannelState.DISCONNECTED);
+                    compareAndSetState(ChannelState.DISCONNECTING, ChannelState.DISCONNECTED);
                 }
             } else {
                 errorHandler.accept(new Exception("already connected"));
@@ -70,19 +70,22 @@ public class Receiver extends AbstractChannel implements IReceiver {
 
     @Override
     public void disconnect() {
-        compareAndSetState(ChannelState.CONNECTING, ChannelState.TERMINATING);
-        if (compareAndSetState(ChannelState.CONNECTED, ChannelState.TERMINATING)) {
-            try {
-                channel.close();
-            } catch (IOException e) {
-                errorHandler.accept(e);
-            }
+        updateState(ChannelState.DISCONNECTING);
+        try {
+            channel.close();
+        } catch (IOException e) {
+            errorHandler.accept(e);
         }
     }
 
     @Override
     public void close() throws Exception {
-        disconnect();
+        updateState(ChannelState.TERMINATING);
+        try {
+            channel.close();
+        } catch (IOException e) {
+            errorHandler.accept(e);
+        }
         queue.clear();
         queue.add(0);
         super.close();

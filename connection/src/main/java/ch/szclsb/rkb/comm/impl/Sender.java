@@ -27,30 +27,31 @@ public class Sender extends AbstractChannel implements ISender {
             if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.STARTING)) {
                 try (var serverChannel = ServerSocketChannel.open()) {
                     serverChannel.bind(address);
-                    updateState(ChannelState.WAITING);
-                    while (getState() == ChannelState.WAITING) {
-                        // client connection
-                        try (var clientChannel = serverChannel.accept()) {
-                            if (compareAndSetState(ChannelState.WAITING, ChannelState.CONNECTING)) {
-                                queue.clear();
-                                // todo: validate client
-                                if (compareAndSetState(ChannelState.CONNECTING, ChannelState.CONNECTED)) {
-                                    int vkCode;
-                                    while ((vkCode = queue.take()) != 0) {
-                                        writeToChannel(vkCode, clientChannel);
+                    if (compareAndSetState(ChannelState.STARTING, ChannelState.WAITING)) {
+                        while (getState() == ChannelState.WAITING) {
+                            // client connection
+                            try (var clientChannel = serverChannel.accept()) {
+                                if (compareAndSetState(ChannelState.WAITING, ChannelState.CONNECTING)) {
+                                    queue.clear();
+                                    // todo: validate client
+                                    if (compareAndSetState(ChannelState.CONNECTING, ChannelState.CONNECTED)) {
+                                        int vkCode;
+                                        while ((vkCode = queue.take()) != 0) {
+                                            writeToChannel(vkCode, clientChannel);
+                                        }
                                     }
                                 }
+                            } catch (IOException e) {
+                                errorHandler.accept(e);
+                            } finally {
+                                compareAndSetState(ChannelState.DISCONNECTING, ChannelState.WAITING);
                             }
-                        } catch (IOException e) {
-                            errorHandler.accept(e);
-                        } finally {
-                            compareAndSetState(ChannelState.DISCONNECTING, ChannelState.WAITING);
                         }
                     }
                 } catch (Exception e) {
                     errorHandler.accept(e);
                 } finally {
-                    updateState(ChannelState.DISCONNECTED);
+                    compareAndSetState(ChannelState.STOPPING, ChannelState.DISCONNECTED);
                 }
             } else {
                 errorHandler.accept(new Exception("already connected"));
@@ -70,25 +71,23 @@ public class Sender extends AbstractChannel implements ISender {
 
     @Override
     public void disconnect() {
-        compareAndSetState(ChannelState.CONNECTING, ChannelState.DISCONNECTING); // abort during client validation
-        if (compareAndSetState(ChannelState.CONNECTED, ChannelState.DISCONNECTING)) {
-            queue.clear();
-            queue.add(0);
-        }
+        updateState(ChannelState.DISCONNECTING);
+        queue.clear();
+        queue.add(0);
     }
 
     @Override
     public void stop() {
-        compareAndSetState(ChannelState.CONNECTING, ChannelState.TERMINATING); // abort during client validation
-        if (compareAndSetState(ChannelState.CONNECTED, ChannelState.TERMINATING)) {
-            queue.clear();
-            queue.add(0);
-        }
+        updateState(ChannelState.STOPPING);
+        queue.clear();
+        queue.add(0);
     }
 
     @Override
     public void close() throws Exception {
-        stop();
+        updateState(ChannelState.TERMINATING);
+        queue.clear();
+        queue.add(0);
         super.close();
     }
 }

@@ -7,5 +7,6 @@ public enum ChannelState {
     CONNECTING,
     CONNECTED,
     DISCONNECTING,
+    STOPPING,
     TERMINATING
 }

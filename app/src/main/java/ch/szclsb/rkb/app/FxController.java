@@ -77,18 +77,32 @@ public class FxController {
 
     @FXML
     private void onAction(ActionEvent event) {
-        switch (modeProperty.getValue()) {
-            case SEND -> {
-                var port = Integer.parseInt(remotePortInput.getText());
-                sender.open(port);
+        if (ChannelState.DISCONNECTED.equals(stateComponent.getStateObserver())) {
+            switch (modeProperty.getValue()) {
+                case SEND -> {
+                    var port = Integer.parseInt(remotePortInput.getText());
+                    sender.open(port);
+                }
+                case RECEIVE -> {
+                    var host = remoteAddressInput.getText();
+                    var port = Integer.parseInt(remotePortInput.getText());
+                    receiver.connect(host, port);
+                }
+                default -> {
+                    System.out.println("error");
+                }
             }
-            case RECEIVE -> {
-                var host = remoteAddressInput.getText();
-                var port = Integer.parseInt(remotePortInput.getText());
-                receiver.connect(host, port);
-            }
-            default -> {
-                System.out.println("error");
+        } else if (ChannelState.CONNECTED.equals(stateComponent.getStateObserver())) {
+            switch (modeProperty.getValue()) {
+                case SEND -> {
+                    sender.disconnect();
+                }
+                case RECEIVE -> {
+                    receiver.disconnect();
+                }
+                default -> {
+                    System.out.println("error");
+                }
             }
         }
     }

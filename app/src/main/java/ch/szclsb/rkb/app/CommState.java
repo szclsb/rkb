@@ -18,11 +18,12 @@ public class CommState extends Pane {
         stateObserver.addListener((observable, oldValue, newValue) -> {
             circle.setFill(switch (newValue) {
                 case DISCONNECTED -> RED;
-                case WAITING -> BLUE;
+                case WAITING -> YELLOW;
                 case CONNECTED -> GREEN;
-                case STARTING -> LIGHTBLUE;
+                case STARTING -> ORANGE;
                 case CONNECTING -> LIGHTGREEN;
-                case DISCONNECTING -> VIOLET;
+                case DISCONNECTING -> BLUE;
+                case STOPPING -> LIGHTBLUE;
                 case TERMINATING -> BLACK;
             });
         });
