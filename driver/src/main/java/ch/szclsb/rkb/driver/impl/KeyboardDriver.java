@@ -23,7 +23,7 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
     }
 
     private static MemorySegment loadSymbol(String name) {
-        return LOADER.lookup(name).orElseThrow(() -> new UnsatisfiedLinkError("unable to find symbol " + name));
+        return LOADER.find(name).orElseThrow(() -> new UnsatisfiedLinkError("unable to find symbol " + name));
     }
 
     /*
@@ -36,14 +36,14 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
         }
     }
 
-    private final MemorySession session;
+    private final Arena session;
     private final MemorySegment upcallStub;
     private final MethodHandle invokeNative;
     private final MethodHandle scanNative;
     private final MethodHandle stopNative;
 
     private KeyboardDriver() {
-        this.session = MemorySession.openShared();
+        this.session = Arena.openShared();
 
         var dir = System.getProperty("user.dir");
         System.load(dir + "/rkb_native.dll");  //todo: build and install dll with gradle?
@@ -53,7 +53,7 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
 
         try {
             var methodHandle = MethodHandles.lookup().findStatic(KeyboardDriver.class, "upcall", MethodType.methodType(void.class, int.class, boolean.class));
-            this.upcallStub = LINKER.upcallStub(methodHandle, FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN), session);
+            this.upcallStub = LINKER.upcallStub(methodHandle, FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN), session.scope());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
