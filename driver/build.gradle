@@ -15,17 +15,34 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+tasks.register('buildNative', Exec) {
+    workingDir "${project.projectDir}"
+    doFirst {
+        println "Compiling native dll"
+    }
+    commandLine 'cmd', '/c', 'build-native.bat'
+    doLast {
+        println "Finished building dll"
+    }
+}
+
+compileJava {
+    dependsOn buildNative
+    options.compilerArgs += "--enable-preview"
+
+}
+
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(19)
+        languageVersion = JavaLanguageVersion.of(20)
     }
+}
+
+compileTestJava {
+    options.compilerArgs += "--enable-preview"
 }
 
 test {
     useJUnitPlatform()
     jvmArgs("--enable-preview", "--enable-native-access=ch.szclsb.rkb.driver")
-}
-
-tasks.withType(JavaCompile) {
-    options.compilerArgs += "--enable-preview"
 }

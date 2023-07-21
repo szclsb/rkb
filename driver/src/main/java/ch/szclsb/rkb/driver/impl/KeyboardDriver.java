@@ -5,7 +5,6 @@ import ch.szclsb.rkb.driver.IKeyboard;
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -23,7 +22,7 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
     }
 
     private static MemorySegment loadSymbol(String name) {
-        return LOADER.lookup(name).orElseThrow(() -> new UnsatisfiedLinkError("unable to find symbol " + name));
+        return LOADER.find(name).orElseThrow(() -> new UnsatisfiedLinkError("unable to find symbol " + name));
     }
 
     /*
@@ -36,24 +35,25 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
         }
     }
 
-    private final MemorySession session;
+    private final Arena session;
     private final MemorySegment upcallStub;
     private final MethodHandle invokeNative;
     private final MethodHandle scanNative;
     private final MethodHandle stopNative;
 
     private KeyboardDriver() {
-        this.session = MemorySession.openShared();
+        this.session = Arena.openShared();
 
         var dir = System.getProperty("user.dir");
-        System.load(dir + "/rkb_native.dll");  //todo: build and install dll with gradle?
+        System.load(dir + "/build-native/Debug/rkb_native.dll");
         this.invokeNative = LINKER.downcallHandle(loadSymbol("invoke"), FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN));
         this.scanNative = LINKER.downcallHandle(loadSymbol("scan"), FunctionDescriptor.ofVoid(ADDRESS));
         this.stopNative = LINKER.downcallHandle(loadSymbol("stop"), FunctionDescriptor.ofVoid());
 
         try {
-            var methodHandle = MethodHandles.lookup().findStatic(KeyboardDriver.class, "upcall", MethodType.methodType(void.class, int.class, boolean.class));
-            this.upcallStub = LINKER.upcallStub(methodHandle, FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN), session);
+            var descriptor = FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN);
+            var methodHandle = MethodHandles.lookup().findStatic(KeyboardDriver.class, "upcall", descriptor.toMethodType());
+            this.upcallStub = LINKER.upcallStub(methodHandle, descriptor, session.scope());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
