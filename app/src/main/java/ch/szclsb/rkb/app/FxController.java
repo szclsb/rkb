@@ -1,8 +1,7 @@
 package ch.szclsb.rkb.app;
 
 import ch.szclsb.rkb.comm.ChannelState;
-import ch.szclsb.rkb.comm.impl.Receiver;
-import ch.szclsb.rkb.comm.impl.Sender;
+import ch.szclsb.rkb.comm.impl.SenderChannel;
 import javafx.beans.property.Property;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.event.ActionEvent;
@@ -10,7 +9,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyEvent;
 
-import java.util.function.Consumer;
+import java.io.IOException;
 
 public class FxController {
     @FXML
@@ -33,22 +32,22 @@ public class FxController {
     private TextArea area;
 
     private final Property<Mode> modeProperty;
-    private final Sender sender;
-    private final Receiver receiver;
+    private final SenderChannel sender;
+//    private final IChannel receiver;
 
     public FxController() {
         this.modeProperty = new SimpleObjectProperty<>();
-        Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
-        this.sender = new Sender(errorHandler);
+//        Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
+        this.sender = new SenderChannel();
         this.sender.addStateChangeListener(state -> {
             stateComponent.stateObserverProperty().set(state);
             area.setDisable(state != ChannelState.CONNECTED);
         });
-        this.receiver = new Receiver(errorHandler);
-        this.receiver.addStateChangeListener(state -> {
-            stateComponent.stateObserverProperty().set(state);
-        });
-        this.receiver.addVkCodeListener(System.out::println);
+//        this.receiver = new Receiver(errorHandler);
+//        this.receiver.addStateChangeListener(state -> {
+//            stateComponent.stateObserverProperty().set(state);
+//        });
+//        this.receiver.addVkCodeListener(System.out::println);
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
             action.setText(newValue.getActionText());
             remoteAddressInput.setDisable(!newValue.equals(Mode.RECEIVE));
@@ -77,25 +76,35 @@ public class FxController {
 
     @FXML
     private void onAction(ActionEvent event) {
-        switch (modeProperty.getValue()) {
-            case SEND -> {
-                var port = Integer.parseInt(remotePortInput.getText());
-                sender.open(port);
+        try {
+            switch (modeProperty.getValue()) {
+                case SEND -> {
+                    var port = Integer.parseInt(remotePortInput.getText());
+                    sender.open(port);
+                }
+                case RECEIVE -> {
+                    var host = remoteAddressInput.getText();
+                    var port = Integer.parseInt(remotePortInput.getText());
+//                receiver.connect(host, port);
+                }
+                default -> {
+                    System.err.println("error");
+                }
             }
-            case RECEIVE -> {
-                var host = remoteAddressInput.getText();
-                var port = Integer.parseInt(remotePortInput.getText());
-                receiver.connect(host, port);
-            }
-            default -> {
-                System.out.println("error");
-            }
+        } catch (IOException ioe) {
+            System.err.println(ioe.getMessage());
         }
     }
 
+    // todo use native driver scanner
+
     @FXML
     private void onKeyDown(KeyEvent event) {
-        sender.send(event.getCode().getCode());
+        sender.send(event.getCode().getCode(), false);
+    }
+    @FXML
+    private void onKeyUp(KeyEvent event) {
+        sender.send(event.getCode().getCode(), true);
     }
 
     /**
@@ -105,6 +114,6 @@ public class FxController {
      */
     public void terminate() throws Exception {
         sender.close();
-        receiver.close();
+//        receiver.close();
     }
 }
