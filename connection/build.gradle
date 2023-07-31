@@ -14,12 +14,21 @@ dependencies {
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
 }
 
+compileJava {
+    options.compilerArgs += "--enable-preview"
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(20)
     }
 }
 
+compileTestJava {
+    options.compilerArgs += "--enable-preview"
+}
+
 test {
     useJUnitPlatform()
+    jvmArgs("--enable-preview")
 }

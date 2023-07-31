@@ -2,6 +2,7 @@ package ch.szclsb.rkb.comm.impl;
 
 import ch.szclsb.rkb.comm.ChannelState;
 import ch.szclsb.rkb.comm.IChannel;
+import ch.szclsb.rkb.comm.VkCodeEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public abstract class AbstractChannel implements IChannel {
+    public static final VkCodeEvent STOP_EVENT = new VkCodeEvent(-1, false);
     private final AtomicReference<ChannelState> state;
     private final List<Consumer<ChannelState>> listeners;
 

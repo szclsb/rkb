@@ -5,19 +5,19 @@ import ch.szclsb.rkb.comm.ISender;
 import ch.szclsb.rkb.comm.VkCodeEvent;
 
 import java.io.IOException;
-import java.lang.invoke.DirectMethodHandle$Holder;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.function.Consumer;
 
 public class SenderChannel extends AbstractChannel implements ISender {
     private final BlockingQueue<VkCodeEvent> queue;
     private final ByteBuffer buffer;
-    private volatile ServerSocket serverSocket;
-    private volatile Socket socket;
+    private volatile ServerSocketChannel serverSocketChannel;
+    private volatile SocketChannel channel;
 
     public SenderChannel() {
         this.queue = new ArrayBlockingQueue<>(255);
@@ -27,11 +27,12 @@ public class SenderChannel extends AbstractChannel implements ISender {
     @Override
     public void open(int port) throws IOException {
         if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.WAITING)) {
-            this.serverSocket = new ServerSocket(port);
+            this.serverSocketChannel = ServerSocketChannel.open();
+            serverSocketChannel.bind(new InetSocketAddress(port));
             Thread.ofVirtual().start(() -> {
                 while (ChannelState.WAITING.equals(getState())) {
                     try {
-                        this.socket = serverSocket.accept();
+                        this.channel = serverSocketChannel.accept();
                         queue.clear();
                         if (compareAndSetState(ChannelState.WAITING, ChannelState.CONNECTED)) {
                             while (ChannelState.CONNECTED.equals(getState())) {
@@ -41,7 +42,7 @@ public class SenderChannel extends AbstractChannel implements ISender {
                                         buffer.clear();
                                         buffer.putInt(event.vkCode() * (event.up() ? -1 : 1));  // send key press as positive vkCode, send key release as negative vkCode
                                         buffer.flip();
-                                        socket.getChannel().write(buffer);
+                                        channel.write(buffer);
                                     }
                                 } catch (IOException e) {
                                     setState(ChannelState.WAITING);
@@ -50,6 +51,11 @@ public class SenderChannel extends AbstractChannel implements ISender {
                         }
                     } catch (InterruptedException | IOException e) {
                         setState(ChannelState.DISCONNECTED);
+                    } finally {
+                        try {
+                            channel.close();
+                        } catch (IOException ignore) {
+                        }
                     }
                 }
             });
@@ -66,16 +72,18 @@ public class SenderChannel extends AbstractChannel implements ISender {
 
     @Override
     public void disconnect() throws IOException {
-        socket.close();  // interrupt socket if currently writing
         if (compareAndSetState(ChannelState.CONNECTED, ChannelState.WAITING)) {
+            channel.close();  // interrupt socket if currently writing
             queue.clear();
-            queue.add(new VkCodeEvent(-1, false));  // interrupt waiting queue
+            queue.add(STOP_EVENT);  // interrupt waiting queue
         }
     }
 
     @Override
     public void close() throws Exception {
-        socket.close();  // interrupt socket if currently writing
-        serverSocket.close();  // interrupt server if currently waiting
+        disconnect();
+        if (serverSocketChannel != null) {
+            serverSocketChannel.close();  // interrupt server if currently waiting
+        }
     }
 }
