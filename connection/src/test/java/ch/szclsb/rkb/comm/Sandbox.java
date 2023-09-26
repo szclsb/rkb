@@ -8,6 +8,5 @@ import java.util.concurrent.CountDownLatch;
 
 public interface Sandbox {
     void play(SenderChannel sender, ReceiverChannel receiver,
-              List<ChannelState> senderStateList, List<ChannelState> receiverStateList,
               CountDownLatch connectLatch, CountDownLatch sendLatch) throws Exception;
 }

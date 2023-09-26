@@ -42,7 +42,7 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
     private final MethodHandle stopNative;
 
     private KeyboardDriver() {
-        this.session = Arena.openShared();
+        this.session = Arena.ofShared();
 
         var dir = System.getProperty("user.dir");
         System.load(dir + "/build-native/Debug/rkb_native.dll");
@@ -53,7 +53,7 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
         try {
             var descriptor = FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN);
             var methodHandle = MethodHandles.lookup().findStatic(KeyboardDriver.class, "upcall", descriptor.toMethodType());
-            this.upcallStub = LINKER.upcallStub(methodHandle, descriptor, session.scope());
+            this.upcallStub = LINKER.upcallStub(methodHandle, descriptor, session);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
