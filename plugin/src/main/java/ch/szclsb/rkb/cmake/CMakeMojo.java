@@ -25,10 +25,15 @@ public class CMakeMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException, MojoFailureException {
         getLog().info("Compiling native dll");
         try {
-            runCommand("cmake", "-S", nativePath, "-B", nativeBuildPath, ".");
-            runCommand("cmake", "--build", "./" + nativeBuildPath);
-
-            getLog().info("Compiling native dll");
+            var exitCode = runCommand("cmake", "-S", nativePath, "-B", nativeBuildPath, ".");
+            if (exitCode != 0) {
+                throw new MojoExecutionException("cmake make finished with exit code " + exitCode);
+            }
+            exitCode = runCommand("cmake", "--build", "./" + nativeBuildPath);
+            if (exitCode != 0) {
+                throw new MojoExecutionException("cmake build finished with exit code " + exitCode);
+            }
+            getLog().info("Finished building dll");
         } catch (Exception e) {
             throw new MojoExecutionException(e);
         }
@@ -37,10 +42,13 @@ public class CMakeMojo extends AbstractMojo {
     private int runCommand(String ...command) throws IOException, InterruptedException {
         var builder = new ProcessBuilder();
         builder.command(command);
-        builder.directory(new File(System.getProperty("user.home")));
+        builder.directory(workingDirectory);
         var process = builder.start();
         try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             reader.lines().forEach(line -> getLog().info(line));
+        }
+        try (var reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
+            reader.lines().forEach(line -> getLog().error(line));
         }
         return process.waitFor();
     }
