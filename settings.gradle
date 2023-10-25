@@ -1,5 +1,0 @@
-rootProject.name = 'rkb'
-include 'driver'
-include 'connection'
-include 'app'
-

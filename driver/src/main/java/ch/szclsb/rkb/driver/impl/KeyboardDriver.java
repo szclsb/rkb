@@ -45,7 +45,7 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
         this.session = Arena.ofShared();
 
         var dir = System.getProperty("user.dir");
-        System.load(dir + "/build-native/Debug/rkb_native.dll");
+        System.load(dir + "/target-native/Debug/rkb_native.dll");
         this.invokeNative = LINKER.downcallHandle(loadSymbol("invoke"), FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN));
         this.scanNative = LINKER.downcallHandle(loadSymbol("scan"), FunctionDescriptor.ofVoid(ADDRESS));
         this.stopNative = LINKER.downcallHandle(loadSymbol("stop"), FunctionDescriptor.ofVoid());
