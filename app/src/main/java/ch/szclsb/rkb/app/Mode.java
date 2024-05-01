@@ -4,7 +4,7 @@ public enum Mode {
     SEND("open"),
     RECEIVE("connect");
 
-    private String actionText;
+    private final String actionText;
     Mode(String actionText) {
         this.actionText = actionText;
     }

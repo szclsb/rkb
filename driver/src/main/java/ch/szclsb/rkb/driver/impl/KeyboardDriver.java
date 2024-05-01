@@ -66,18 +66,30 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
 
 
     @Override
-    public void invoke(int vkCode, boolean up) throws Throwable {
-        invokeNative.invoke(vkCode, up);
+    public void invoke(int vkCode, boolean up) {
+        try {
+            invokeNative.invoke(vkCode, up);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     @Override
-    public void scan() throws Throwable {
-        scanNative.invoke(upcallStub);
+    public void scan() {
+        try {
+            scanNative.invoke(upcallStub);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     @Override
-    public void stop() throws Throwable {
-        stopNative.invoke();
+    public void stop() {
+        try {
+            stopNative.invoke();
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
     }
 
     @Override

@@ -1,13 +1,15 @@
 package ch.szclsb.rkb.app;
 
 import ch.szclsb.rkb.comm.ChannelState;
+import ch.szclsb.rkb.comm.impl.ReceiverChannel;
 import ch.szclsb.rkb.comm.impl.SenderChannel;
+import ch.szclsb.rkb.driver.IKeyboard;
+import ch.szclsb.rkb.driver.impl.KeyboardDriver;
 import javafx.beans.property.Property;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.input.KeyEvent;
 
 import java.io.IOException;
 
@@ -33,21 +35,21 @@ public class FxController {
 
     private final Property<Mode> modeProperty;
     private final SenderChannel sender;
-//    private final IChannel receiver;
+    private final ReceiverChannel receiver;
+    private final KeyboardDriver keyboard;
 
     public FxController() {
+        this.keyboard = KeyboardDriver.getInstance();
         this.modeProperty = new SimpleObjectProperty<>();
-//        Consumer<Throwable> errorHandler = t -> System.err.println(t.getMessage());
         this.sender = new SenderChannel();
         this.sender.addStateChangeListener(state -> {
             stateComponent.stateObserverProperty().set(state);
             area.setDisable(state != ChannelState.CONNECTED);
         });
-//        this.receiver = new Receiver(errorHandler);
-//        this.receiver.addStateChangeListener(state -> {
-//            stateComponent.stateObserverProperty().set(state);
-//        });
-//        this.receiver.addVkCodeListener(System.out::println);
+        this.receiver = new ReceiverChannel();
+        this.receiver.addStateChangeListener(state -> {
+            stateComponent.stateObserverProperty().set(state);
+        });
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
             action.setText(newValue.getActionText());
             remoteAddressInput.setDisable(!newValue.equals(Mode.RECEIVE));
@@ -60,6 +62,15 @@ public class FxController {
         sendMode.setText("send");
         receiveMode.setText("receive");
         area.setDisable(true);
+        area.focusedProperty().addListener((observable, oldValue, newValue) -> {
+            if (ChannelState.CONNECTED.equals(sender.getState())) {
+                if (newValue) {
+                    keyboard.scan();
+                } else {
+                    keyboard.stop();
+                }
+            }
+        });
 
         sendMode.fire();
     }
@@ -81,30 +92,18 @@ public class FxController {
                 case SEND -> {
                     var port = Integer.parseInt(remotePortInput.getText());
                     sender.open(port);
+                    keyboard.scan();
                 }
                 case RECEIVE -> {
                     var host = remoteAddressInput.getText();
                     var port = Integer.parseInt(remotePortInput.getText());
-//                receiver.connect(host, port);
+                    receiver.connect(host, port, keyboard::invoke);
                 }
-                default -> {
-                    System.err.println("error");
-                }
+                default -> System.err.println("error");
             }
         } catch (IOException ioe) {
             System.err.println(ioe.getMessage());
         }
-    }
-
-    // todo use native driver scanner
-
-    @FXML
-    private void onKeyDown(KeyEvent event) {
-        sender.send(event.getCode().getCode(), false);
-    }
-    @FXML
-    private void onKeyUp(KeyEvent event) {
-        sender.send(event.getCode().getCode(), true);
     }
 
     /**
@@ -113,7 +112,8 @@ public class FxController {
      * @throws Exception
      */
     public void terminate() throws Exception {
-        sender.close();
-//        receiver.close();
+        sender.disconnect();
+        receiver.disconnect();
+        keyboard.close();
     }
 }

@@ -4,19 +4,20 @@ import ch.szclsb.rkb.comm.ChannelState;
 import ch.szclsb.rkb.comm.IChannel;
 import ch.szclsb.rkb.comm.VkCodeEvent;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public abstract class AbstractChannel implements IChannel {
     public static final VkCodeEvent STOP_EVENT = new VkCodeEvent(-1, false);
+    public static final VkCodeEvent HEARTBEAT_EVENT = new VkCodeEvent(0, false);
     private final AtomicReference<ChannelState> state;
-    private final List<Consumer<ChannelState>> listeners;
+    private final Collection<Consumer<ChannelState>> listeners;
 
     public AbstractChannel() {
         this.state = new AtomicReference<>(ChannelState.DISCONNECTED);
-        this.listeners = new ArrayList<>();
+        this.listeners = new ConcurrentLinkedDeque<>();
     }
 
     @Override
@@ -31,16 +32,12 @@ public abstract class AbstractChannel implements IChannel {
 
     protected void setState(ChannelState state) {
         this.state.set(state);
-        Thread.ofVirtual().start(() -> {
-            listeners.forEach(c -> c.accept(state));
-        });
+        Thread.ofVirtual().start(() -> listeners.forEach(c -> c.accept(state)));
     }
 
-    protected boolean compareAndSetState(ChannelState expected, ChannelState state) {
+    protected boolean compareAndSetState(ChannelState state, ChannelState expected) {
         if (this.state.compareAndSet(expected, state)) {
-            Thread.ofVirtual().start(() -> {
-                listeners.forEach(c -> c.accept(state));
-            });
+            Thread.ofVirtual().start(() -> listeners.forEach(c -> c.accept(state)));
             return true;
         }
         return false;

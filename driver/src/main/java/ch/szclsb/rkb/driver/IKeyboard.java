@@ -17,17 +17,17 @@ public interface IKeyboard {
      * @param vkCode - Windows virtual key code
      * @param up - <code>false</code> if key is pressed, <code>true</code> if key is released
      */
-    void invoke(int vkCode, boolean up) throws Throwable;
+    void invoke(int vkCode, boolean up);
 
     /**
      * Starts scanning the Windows virtual key.
      * This method intercepts system keys, so ALT+TAB and other system shortcuts won't work.
      */
-    void scan() throws Throwable;
+    void scan();
 
     /**
      * Stops scanning the pressed and released keystrokes.
      */
-    void stop() throws Throwable;
+    void stop();
 
 }

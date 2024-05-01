@@ -12,7 +12,6 @@ import java.util.concurrent.BlockingQueue;
 public class ReceiverChannel extends AbstractChannel implements IReceiver {
     private final BlockingQueue<VkCodeEvent> queue;
     private final ByteBuffer buffer;
-    private volatile SocketChannel channel;
 
     public ReceiverChannel() {
         this.queue = new ArrayBlockingQueue<>(255);
@@ -24,29 +23,31 @@ public class ReceiverChannel extends AbstractChannel implements IReceiver {
         if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.CONNECTING)) {
             var address = new InetSocketAddress(host, port);
             // consumer thread
-            Thread.ofVirtual().start(() -> {
-                try {
-                    queue.clear();
-                    boolean run = true;
-                    while (run) {
-                        var event = queue.take();
-                        if (event.vkCode() >= 0) {
-                            listener.invoke(event.vkCode(), event.up());
-                        } else {
-                            run = false;
-                        }
-                    }
-                } catch (InterruptedException ie) {
-                    try {
-                        close();
-                    } catch (Exception ignore) {
-                    }
-                }
-            });
+
             // worker thread
             Thread.ofVirtual().start(() -> {
-                try {
-                    this.channel = SocketChannel.open(address);
+                try (var channel = SocketChannel.open(address)) {
+                    Thread.ofVirtual().start(() -> {
+                        try {
+                            queue.clear();
+                            boolean run = true;
+                            while (run) {
+                                var event = queue.take();
+                                if (event.vkCode() > 0) {
+                                    listener.invoke(event.vkCode(), event.up());
+                                } else {
+                                    run = false;
+                                }
+                            }
+                        } catch (InterruptedException ignored) {
+                        } finally {
+                            try {
+                                channel.close();
+                            } catch (IOException ignored) {
+                            }
+                        }
+                    });
+
                     if (compareAndSetState(ChannelState.CONNECTING, ChannelState.CONNECTED)) {
                         int size;
                         while ((size = channel.read(buffer)) != -1) {
@@ -58,29 +59,16 @@ public class ReceiverChannel extends AbstractChannel implements IReceiver {
                             }
                         }
                     }
-                } catch (IOException e) {
-                } finally {
-                    try {
-                        setState(ChannelState.DISCONNECTED);
-                        queue.clear();
-                        queue.offer(STOP_EVENT);
-                        channel.close();
-                    } catch (IOException ignore) {
-                    }
+                } catch (IOException ioe) {
+                    disconnect();
                 }
             });
         }
     }
 
     @Override
-    public void disconnect() throws IOException {
-        if (compareAndSetState(ChannelState.CONNECTED, ChannelState.DISCONNECTED)) {
-            channel.close();  // interrupt socket if currently writing
-        }
-    }
-
-    @Override
-    public void close() throws Exception {
-        disconnect();
+    public void disconnect() {
+        queue.clear();
+        queue.offer(STOP_EVENT);
     }
 }

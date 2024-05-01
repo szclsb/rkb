@@ -29,90 +29,88 @@ public class CommIT {
         var senderStateList = new ArrayList<ChannelState>();
         var receiverStateList = new ArrayList<ChannelState>();
 //        Consumer<Throwable> errorHandler = t -> fail(t.getMessage());
-        try (var sender = new SenderChannel()) {
-            try (var receiver = new ReceiverChannel()) {
-                sender.addStateChangeListener(state -> {
-                    senderStateList.add(state);
+        var sender = new SenderChannel();
+        var receiver = new ReceiverChannel();
+        sender.addStateChangeListener(state -> {
+            senderStateList.add(state);
 //                    System.out.printf("sender: %s\n", state.name());
-                    try {
-                        switch (state) {
-                            case WAITING -> connectLatch.countDown();
-                            case CONNECTED -> sendLatch.countDown();
-                        }
-                    } catch (Exception e) {
-                        fail(e.getMessage());
-                    }
-                });
-                receiver.addStateChangeListener(state -> {
-                    receiverStateList.add(state);
-//                    System.out.printf("receiver: %s\n", state.name());
-                    try {
-                        if (state.equals(ChannelState.CONNECTED)) {
-                            sendLatch.countDown();
-                        }
-                    } catch (Exception e) {
-                        fail(e.getMessage());
-                    }
-                });
-                sandbox.play(sender, receiver, connectLatch, sendLatch);
+            try {
+                switch (state) {
+                    case WAITING -> connectLatch.countDown();
+                    case CONNECTED -> sendLatch.countDown();
+                }
+            } catch (Exception e) {
+                fail(e.getMessage());
             }
-        }
+        });
+        receiver.addStateChangeListener(state -> {
+            receiverStateList.add(state);
+//                    System.out.printf("receiver: %s\n", state.name());
+            try {
+                if (state.equals(ChannelState.CONNECTED)) {
+                    sendLatch.countDown();
+                }
+            } catch (Exception e) {
+                fail(e.getMessage());
+            }
+        });
+        sandbox.play(sender, receiver, connectLatch, sendLatch);
         senderStateConsumer.accept(senderStateList);
         receiverStateConsumer.accept(receiverStateList);
     }
 
-    private Sandbox handshake(VkCodeHandler handler, Sandbox sandbox) {
-        return (sender, receiver, connectLatch, sendLatch) -> {
-            sender.open(port);
-            if (!connectLatch.await(5, TimeUnit.SECONDS)) {
-                throw new TimeoutException();
-            }
-            receiver.connect(host, port, handler);
-            if (!sendLatch.await(5, TimeUnit.SECONDS)) {
-                throw new TimeoutException();
-            }
-            sandbox.play(sender, receiver, connectLatch, sendLatch);
-        };
-    }
+private Sandbox handshake(VkCodeHandler handler, Sandbox sandbox) {
+    return (sender, receiver, connectLatch, sendLatch) -> {
+        sender.open(port);
+        if (!connectLatch.await(5, TimeUnit.SECONDS)) {
+            throw new TimeoutException();
+        }
+        receiver.connect(host, port, handler);
+        if (!sendLatch.await(5, TimeUnit.SECONDS)) {
+            throw new TimeoutException();
+        }
+        sandbox.play(sender, receiver, connectLatch, sendLatch);
+    };
+}
 
-    private Consumer<List<ChannelState>> assertStates(ChannelState... expectedStates) {
-        return states -> assertArrayEquals(Stream.of(expectedStates).toArray(ChannelState[]::new),
-                states.toArray(ChannelState[]::new));
-    }
+private Consumer<List<ChannelState>> assertStates(ChannelState... expectedStates) {
+    return states -> assertArrayEquals(Stream.of(expectedStates).toArray(ChannelState[]::new),
+            states.toArray(ChannelState[]::new));
+}
 
-    @Test
-    @Disabled
-    public void testComm() throws Exception {
-        var vkCodes = List.of(
-                new VkCodeEvent(127, false),
-                new VkCodeEvent(127, true),
-                new VkCodeEvent(65, false),
-                new VkCodeEvent(65, true)
-        );
-        var queue = new LinkedBlockingQueue<VkCodeEvent>(5);
-        prepare(handshake((vkCode1, up) -> {
+@Test
+@Disabled
+public void testComm() throws Exception {
+    var vkCodes = List.of(
+            new VkCodeEvent(127, false),
+            new VkCodeEvent(127, true),
+            new VkCodeEvent(65, false),
+            new VkCodeEvent(65, true)
+    );
+    var queue = new LinkedBlockingQueue<VkCodeEvent>(5);
+    prepare(handshake((vkCode1, up) -> {
+                        try {
+                            queue.offer(new VkCodeEvent(vkCode1, up), 200, TimeUnit.MILLISECONDS);
+                        } catch (Exception e) {
+                            fail(e.getMessage());
+                        }
+                    }, (sender, receiver, connectLatch, sendLatch) -> {
+                        vkCodes.forEach(vkCode -> sender.send(vkCode.vkCode(), vkCode.up()));
+                        vkCodes.forEach(vkCode -> {
                             try {
-                                queue.offer(new VkCodeEvent(vkCode1, up), 200, TimeUnit.MILLISECONDS);
+                                var receivedCode = queue.poll(5, TimeUnit.SECONDS);
+                                assertEquals(vkCode, receivedCode);
                             } catch (Exception e) {
                                 fail(e.getMessage());
                             }
-                        }, (sender, receiver, connectLatch, sendLatch) -> {
-                            vkCodes.forEach(vkCode -> sender.send(vkCode.vkCode(), vkCode.up()));
-                            vkCodes.forEach(vkCode -> {
-                                try {
-                                    var receivedCode = queue.poll(5, TimeUnit.SECONDS);
-                                    assertEquals(vkCode, receivedCode);
-                                } catch (Exception e) {
-                                    fail(e.getMessage());
-                                }
-                            });
-                        }
-                ), assertStates(ChannelState.WAITING,
-                        ChannelState.CONNECTED,
-                        ChannelState.DISCONNECTED),
-                assertStates(ChannelState.CONNECTING,
-                        ChannelState.CONNECTED,
-                        ChannelState.DISCONNECTED)
-        );
-    }
+                        });
+                    }
+            ), assertStates(ChannelState.WAITING,
+                    ChannelState.CONNECTED,
+                    ChannelState.DISCONNECTED),
+            assertStates(ChannelState.CONNECTING,
+                    ChannelState.CONNECTED,
+                    ChannelState.DISCONNECTED)
+    );
+}
 }

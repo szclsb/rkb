@@ -6,18 +6,16 @@ import ch.szclsb.rkb.comm.VkCodeEvent;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 public class SenderChannel extends AbstractChannel implements ISender {
     private final BlockingQueue<VkCodeEvent> queue;
     private final ByteBuffer buffer;
-    private volatile ServerSocketChannel serverSocketChannel;
-    private volatile SocketChannel channel;
 
     public SenderChannel() {
         this.queue = new ArrayBlockingQueue<>(255);
@@ -26,40 +24,44 @@ public class SenderChannel extends AbstractChannel implements ISender {
 
     @Override
     public void open(int port) throws IOException {
-        if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.WAITING)) {
-            this.serverSocketChannel = ServerSocketChannel.open();
-            serverSocketChannel.bind(new InetSocketAddress(port));
+        if (compareAndSetState(ChannelState.WAITING, ChannelState.DISCONNECTED)) {
             Thread.ofVirtual().start(() -> {
-                while (ChannelState.WAITING.equals(getState())) {
-                    try {
-                        this.channel = serverSocketChannel.accept();
-                        queue.clear();
-                        if (compareAndSetState(ChannelState.WAITING, ChannelState.CONNECTED)) {
-                            while (ChannelState.CONNECTED.equals(getState())) {
-                                try {
-                                    var event = queue.take();
-                                    if (event.vkCode() > 0) {  // negative vk code to exit
-                                        buffer.clear();
-                                        buffer.putInt(event.vkCode() * (event.up() ? -1 : 1));  // send key press as positive vkCode, send key release as negative vkCode
-                                        buffer.flip();
-                                        channel.write(buffer);
+                try (var socket = ServerSocketChannel.open().bind(new InetSocketAddress(port))) {
+                    while (ChannelState.WAITING.equals(getState())) {
+                        try (var channel = socket.accept()) {
+                            queue.clear();
+                            if (compareAndSetState(ChannelState.WAITING, ChannelState.CONNECTED)) {
+                                while (ChannelState.CONNECTED.equals(getState())) {
+                                    try {
+                                        var event = queue.poll(3L, TimeUnit.SECONDS);
+                                        if (event == null) {
+                                            transmit(channel, HEARTBEAT_EVENT);
+                                        } else if (event.vkCode() > 0) {  // negative vk code to exit
+                                            transmit(channel, event);
+                                        } else {
+                                            setState(ChannelState.WAITING);
+                                        }
+                                    } catch (IOException e) {
+                                        setState(ChannelState.WAITING);
                                     }
-                                } catch (IOException e) {
-                                    setState(ChannelState.WAITING);
                                 }
                             }
-                        }
-                    } catch (InterruptedException | IOException e) {
-                        setState(ChannelState.DISCONNECTED);
-                    } finally {
-                        try {
-                            channel.close();
-                        } catch (IOException ignore) {
+                        } catch (InterruptedException | IOException e) {
+                            setState(ChannelState.DISCONNECTED);
                         }
                     }
+                } catch (Exception e) {
+                    setState(ChannelState.DISCONNECTED);
                 }
             });
         }
+    }
+
+    private void transmit(SocketChannel channel, VkCodeEvent event) throws IOException {
+        buffer.clear();
+        buffer.putInt(event.vkCode() * (event.up() ? -1 : 1));  // send key press as positive vkCode, send key release as negative vkCode
+        buffer.flip();
+        channel.write(buffer);
     }
 
     @Override
@@ -71,19 +73,8 @@ public class SenderChannel extends AbstractChannel implements ISender {
     }
 
     @Override
-    public void disconnect() throws IOException {
-        if (compareAndSetState(ChannelState.CONNECTED, ChannelState.WAITING)) {
-            channel.close();  // interrupt socket if currently writing
-            queue.clear();
-            queue.add(STOP_EVENT);  // interrupt waiting queue
-        }
-    }
-
-    @Override
-    public void close() throws Exception {
-        disconnect();
-        if (serverSocketChannel != null) {
-            serverSocketChannel.close();  // interrupt server if currently waiting
-        }
+    public void disconnect() {
+        queue.clear();
+        queue.offer(STOP_EVENT);
     }
 }
