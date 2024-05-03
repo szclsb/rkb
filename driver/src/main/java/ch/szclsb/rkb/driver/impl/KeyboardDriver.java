@@ -5,6 +5,7 @@ import ch.szclsb.rkb.driver.IKeyboard;
 import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
@@ -42,15 +43,17 @@ public class KeyboardDriver implements IKeyboard, AutoCloseable {
     private final MethodHandle stopNative;
 
     private KeyboardDriver() {
-        this.session = Arena.ofShared();
+        try (var is = getClass().getClassLoader().getResourceAsStream("driver.properties")) {
+            var properties = new Properties();
+            properties.load(is);
+            var nativeFile = (String) properties.get("native-dll");
+            var dir = System.getProperty("user.dir");
+            System.load(dir + "/" + nativeFile);
+            this.session = Arena.ofShared();
 
-        var dir = System.getProperty("user.dir");
-        System.load(dir + "/target-native/Debug/rkb_native.dll");
-        this.invokeNative = LINKER.downcallHandle(loadSymbol("invoke"), FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN));
-        this.scanNative = LINKER.downcallHandle(loadSymbol("scan"), FunctionDescriptor.ofVoid(ADDRESS));
-        this.stopNative = LINKER.downcallHandle(loadSymbol("stop"), FunctionDescriptor.ofVoid());
-
-        try {
+            this.invokeNative = LINKER.downcallHandle(loadSymbol("invoke"), FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN));
+            this.scanNative = LINKER.downcallHandle(loadSymbol("scan"), FunctionDescriptor.ofVoid(ADDRESS));
+            this.stopNative = LINKER.downcallHandle(loadSymbol("stop"), FunctionDescriptor.ofVoid());
             var descriptor = FunctionDescriptor.ofVoid(JAVA_INT, JAVA_BOOLEAN);
             var methodHandle = MethodHandles.lookup().findStatic(KeyboardDriver.class, "upcall", descriptor.toMethodType());
             this.upcallStub = LINKER.upcallStub(methodHandle, descriptor, session);
