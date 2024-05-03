@@ -6,4 +6,5 @@ public interface ISender extends IChannel {
     void open(int port) throws IOException;
     boolean send(int vkCode, boolean up);
     void disconnect();
+    void terminate();
 }

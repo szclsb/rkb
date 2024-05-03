@@ -20,10 +20,8 @@ public class ReceiverChannel extends AbstractChannel implements IReceiver {
 
     @Override
     public void connect(String host, int port, VkCodeHandler listener) throws IOException {
-        if (compareAndSetState(ChannelState.DISCONNECTED, ChannelState.CONNECTING)) {
+        if (compareAndSetState(ChannelState.CONNECTING, ChannelState.DISCONNECTED)) {
             var address = new InetSocketAddress(host, port);
-            // consumer thread
-
             // worker thread
             Thread.ofVirtual().start(() -> {
                 try (var channel = SocketChannel.open(address)) {
@@ -48,7 +46,7 @@ public class ReceiverChannel extends AbstractChannel implements IReceiver {
                         }
                     });
 
-                    if (compareAndSetState(ChannelState.CONNECTING, ChannelState.CONNECTED)) {
+                    if (compareAndSetState(ChannelState.CONNECTED, ChannelState.CONNECTING)) {
                         int size;
                         while ((size = channel.read(buffer)) != -1) {
                             buffer.rewind();
@@ -61,6 +59,8 @@ public class ReceiverChannel extends AbstractChannel implements IReceiver {
                     }
                 } catch (IOException ioe) {
                     disconnect();
+                } finally {
+                    setState(ChannelState.DISCONNECTED);
                 }
             });
         }

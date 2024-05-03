@@ -2,15 +2,12 @@ package ch.szclsb.rkb.comm;
 
 import ch.szclsb.rkb.comm.impl.ReceiverChannel;
 import ch.szclsb.rkb.comm.impl.SenderChannel;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -33,7 +30,7 @@ public class CommIT {
         var receiver = new ReceiverChannel();
         sender.addStateChangeListener(state -> {
             senderStateList.add(state);
-//                    System.out.printf("sender: %s\n", state.name());
+            System.out.printf("sender: %s\n", state.name());
             try {
                 switch (state) {
                     case WAITING -> connectLatch.countDown();
@@ -45,7 +42,7 @@ public class CommIT {
         });
         receiver.addStateChangeListener(state -> {
             receiverStateList.add(state);
-//                    System.out.printf("receiver: %s\n", state.name());
+            System.out.printf("receiver: %s\n", state.name());
             try {
                 if (state.equals(ChannelState.CONNECTED)) {
                     sendLatch.countDown();
@@ -55,62 +52,64 @@ public class CommIT {
             }
         });
         sandbox.play(sender, receiver, connectLatch, sendLatch);
+        Thread.sleep(500);
         senderStateConsumer.accept(senderStateList);
         receiverStateConsumer.accept(receiverStateList);
     }
 
-private Sandbox handshake(VkCodeHandler handler, Sandbox sandbox) {
-    return (sender, receiver, connectLatch, sendLatch) -> {
-        sender.open(port);
-        if (!connectLatch.await(5, TimeUnit.SECONDS)) {
-            throw new TimeoutException();
-        }
-        receiver.connect(host, port, handler);
-        if (!sendLatch.await(5, TimeUnit.SECONDS)) {
-            throw new TimeoutException();
-        }
-        sandbox.play(sender, receiver, connectLatch, sendLatch);
-    };
-}
+    private Sandbox handshake(VkCodeHandler handler, Sandbox sandbox) {
+        return (sender, receiver, connectLatch, sendLatch) -> {
+            sender.open(port);
+            if (!connectLatch.await(5, TimeUnit.SECONDS)) {
+                throw new TimeoutException();
+            }
+            receiver.connect(host, port, handler);
+            if (!sendLatch.await(5, TimeUnit.SECONDS)) {
+                throw new TimeoutException();
+            }
+            sandbox.play(sender, receiver, connectLatch, sendLatch);
+            receiver.disconnect();
+            sender.terminate();
+        };
+    }
 
-private Consumer<List<ChannelState>> assertStates(ChannelState... expectedStates) {
-    return states -> assertArrayEquals(Stream.of(expectedStates).toArray(ChannelState[]::new),
-            states.toArray(ChannelState[]::new));
-}
+    private Consumer<List<ChannelState>> assertStates(ChannelState... expectedStates) {
+        return states -> assertArrayEquals(Stream.of(expectedStates).toArray(ChannelState[]::new),
+                states.toArray(ChannelState[]::new));
+    }
 
-@Test
-@Disabled
-public void testComm() throws Exception {
-    var vkCodes = List.of(
-            new VkCodeEvent(127, false),
-            new VkCodeEvent(127, true),
-            new VkCodeEvent(65, false),
-            new VkCodeEvent(65, true)
-    );
-    var queue = new LinkedBlockingQueue<VkCodeEvent>(5);
-    prepare(handshake((vkCode1, up) -> {
-                        try {
-                            queue.offer(new VkCodeEvent(vkCode1, up), 200, TimeUnit.MILLISECONDS);
-                        } catch (Exception e) {
-                            fail(e.getMessage());
-                        }
-                    }, (sender, receiver, connectLatch, sendLatch) -> {
-                        vkCodes.forEach(vkCode -> sender.send(vkCode.vkCode(), vkCode.up()));
-                        vkCodes.forEach(vkCode -> {
+    @Test
+    public void testComm() throws Exception {
+        var vkCodes = List.of(
+                new VkCodeEvent(127, false),
+                new VkCodeEvent(127, true),
+                new VkCodeEvent(65, false),
+                new VkCodeEvent(65, true)
+        );
+        var queue = new LinkedBlockingQueue<VkCodeEvent>(5);
+        prepare(handshake((vkCode1, up) -> {
                             try {
-                                var receivedCode = queue.poll(5, TimeUnit.SECONDS);
-                                assertEquals(vkCode, receivedCode);
+                                queue.offer(new VkCodeEvent(vkCode1, up), 200, TimeUnit.MILLISECONDS);
                             } catch (Exception e) {
                                 fail(e.getMessage());
                             }
-                        });
-                    }
-            ), assertStates(ChannelState.WAITING,
-                    ChannelState.CONNECTED,
-                    ChannelState.DISCONNECTED),
-            assertStates(ChannelState.CONNECTING,
-                    ChannelState.CONNECTED,
-                    ChannelState.DISCONNECTED)
-    );
-}
+                        }, (sender, receiver, connectLatch, sendLatch) -> {
+                            vkCodes.forEach(vkCode -> sender.send(vkCode.vkCode(), vkCode.up()));
+                            vkCodes.forEach(vkCode -> {
+                                try {
+                                    var receivedCode = queue.poll(5, TimeUnit.SECONDS);
+                                    assertEquals(vkCode, receivedCode);
+                                } catch (Exception e) {
+                                    fail(e.getMessage());
+                                }
+                            });
+                        }
+                ), assertStates(ChannelState.WAITING,
+                        ChannelState.CONNECTED,
+                        ChannelState.DISCONNECTED),
+                assertStates(ChannelState.CONNECTING,
+                        ChannelState.CONNECTED,
+                        ChannelState.DISCONNECTED)
+        );
+    }
 }

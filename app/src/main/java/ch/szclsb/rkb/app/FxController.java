@@ -3,7 +3,6 @@ package ch.szclsb.rkb.app;
 import ch.szclsb.rkb.comm.ChannelState;
 import ch.szclsb.rkb.comm.impl.ReceiverChannel;
 import ch.szclsb.rkb.comm.impl.SenderChannel;
-import ch.szclsb.rkb.driver.IKeyboard;
 import ch.szclsb.rkb.driver.impl.KeyboardDriver;
 import javafx.beans.property.Property;
 import javafx.beans.property.SimpleObjectProperty;
@@ -112,7 +111,7 @@ public class FxController {
      * @throws Exception
      */
     public void terminate() throws Exception {
-        sender.disconnect();
+        sender.terminate();
         receiver.disconnect();
         keyboard.close();
     }

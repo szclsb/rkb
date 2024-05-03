@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 public class SenderChannel extends AbstractChannel implements ISender {
     private final BlockingQueue<VkCodeEvent> queue;
     private final ByteBuffer buffer;
+    private volatile Thread serverThread;
 
     public SenderChannel() {
         this.queue = new ArrayBlockingQueue<>(255);
@@ -23,14 +24,14 @@ public class SenderChannel extends AbstractChannel implements ISender {
     }
 
     @Override
-    public void open(int port) throws IOException {
+    public synchronized void open(int port) throws IOException {
         if (compareAndSetState(ChannelState.WAITING, ChannelState.DISCONNECTED)) {
-            Thread.ofVirtual().start(() -> {
+            this.serverThread = Thread.ofVirtual().start(() -> {
                 try (var socket = ServerSocketChannel.open().bind(new InetSocketAddress(port))) {
                     while (ChannelState.WAITING.equals(getState())) {
                         try (var channel = socket.accept()) {
                             queue.clear();
-                            if (compareAndSetState(ChannelState.WAITING, ChannelState.CONNECTED)) {
+                            if (compareAndSetState(ChannelState.CONNECTED, ChannelState.WAITING)) {
                                 while (ChannelState.CONNECTED.equals(getState())) {
                                     try {
                                         var event = queue.poll(3L, TimeUnit.SECONDS);
@@ -46,8 +47,6 @@ public class SenderChannel extends AbstractChannel implements ISender {
                                     }
                                 }
                             }
-                        } catch (InterruptedException | IOException e) {
-                            setState(ChannelState.DISCONNECTED);
                         }
                     }
                 } catch (Exception e) {
@@ -76,5 +75,12 @@ public class SenderChannel extends AbstractChannel implements ISender {
     public void disconnect() {
         queue.clear();
         queue.offer(STOP_EVENT);
+    }
+
+    @Override
+    public synchronized void terminate() {
+        if (serverThread != null) {
+            this.serverThread.interrupt();
+        }
     }
 }

@@ -12,9 +12,6 @@
     <artifactId>rkb-app</artifactId>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javafx.version>21.0.1</javafx.version>
     </properties>
 
@@ -58,7 +55,10 @@
                 <artifactId>javafx-maven-plugin</artifactId>
                 <version>0.0.8</version>
                 <configuration>
-                    <mainClass>ch.szclsb.rkb.app/ch.szclsb.rkb.app.Main</mainClass>
+                    <mainClass>ch.szclsb.rkb.app.Main</mainClass>
+                    <options>
+                        <option>--enable-preview</option>
+                    </options>
                 </configuration>
             </plugin>
         </plugins>
