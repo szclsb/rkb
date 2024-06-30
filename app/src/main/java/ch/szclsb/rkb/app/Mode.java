@@ -1,12 +1,20 @@
 package ch.szclsb.rkb.app;
 
 public enum Mode {
-    SEND("open"),
-    RECEIVE("connect");
+    SEND(true,"open"),
+    SENDING(true,"disconnect"),
+    RECEIVE(false, "connect"),
+    RECEIVING(false, "disconnect"),;
 
+    public boolean send;
     private final String actionText;
-    Mode(String actionText) {
+    Mode(boolean send, String actionText) {
+        this.send = send;
         this.actionText = actionText;
+    }
+
+    public boolean isSend() {
+        return send;
     }
 
     public String getActionText() {

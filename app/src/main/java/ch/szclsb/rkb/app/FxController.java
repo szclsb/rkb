@@ -44,14 +44,23 @@ public class FxController {
         this.sender.addStateChangeListener(state -> {
             stateComponent.stateObserverProperty().set(state);
             area.setDisable(state != ChannelState.CONNECTED);
+            action.setDisable(state != ChannelState.DISCONNECTED
+                    && state != ChannelState.WAITING
+                    && state != ChannelState.CONNECTED);
+            modeProperty.setValue(state == ChannelState.CONNECTED ? Mode.SENDING : Mode.SEND);
         });
         this.receiver = new ReceiverChannel();
         this.receiver.addStateChangeListener(state -> {
             stateComponent.stateObserverProperty().set(state);
+            action.setDisable(state != ChannelState.DISCONNECTED
+                    && state != ChannelState.WAITING
+                    && state != ChannelState.CONNECTED);
+            modeProperty.setValue(state == ChannelState.CONNECTED ? Mode.RECEIVING : Mode.RECEIVE);
         });
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
             action.setText(newValue.getActionText());
-            remoteAddressInput.setDisable(!newValue.equals(Mode.RECEIVE));
+//            remoteAddressInput.setDisable(!newValue.equals(Mode.RECEIVE));
+            remoteAddressInput.setDisable(newValue.isSend());
         });
     }
 
@@ -93,10 +102,16 @@ public class FxController {
                     sender.open(port);
                     keyboard.scan();
                 }
+                case SENDING -> {
+                    sender.disconnect();
+                }
                 case RECEIVE -> {
                     var host = remoteAddressInput.getText();
                     var port = Integer.parseInt(remotePortInput.getText());
                     receiver.connect(host, port, keyboard::invoke);
+                }
+                case RECEIVING -> {
+                    receiver.disconnect();
                 }
                 default -> System.err.println("error");
             }
