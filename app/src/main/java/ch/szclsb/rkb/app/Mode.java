@@ -2,6 +2,7 @@ package ch.szclsb.rkb.app;
 
 public enum Mode {
     SEND(true,"open"),
+    WAITING(true,"terminate"),
     SENDING(true,"disconnect"),
     RECEIVE(false, "connect"),
     RECEIVING(false, "disconnect"),;

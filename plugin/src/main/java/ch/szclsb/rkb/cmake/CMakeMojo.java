@@ -25,7 +25,7 @@ public class CMakeMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException, MojoFailureException {
         getLog().info("Compiling native dll");
         try {
-            var exitCode = runCommand("cmake", "-S", nativePath, "-B", nativeBuildPath, ".");
+            var exitCode = runCommand("cmake", "-S", nativePath, "-B", nativeBuildPath);
             if (exitCode != 0) {
                 throw new MojoExecutionException("cmake make finished with exit code " + exitCode);
             }

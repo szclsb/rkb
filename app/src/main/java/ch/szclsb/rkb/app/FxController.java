@@ -4,15 +4,20 @@ import ch.szclsb.rkb.comm.ChannelState;
 import ch.szclsb.rkb.comm.impl.ReceiverChannel;
 import ch.szclsb.rkb.comm.impl.SenderChannel;
 import ch.szclsb.rkb.driver.impl.KeyboardDriver;
+import javafx.application.Platform;
 import javafx.beans.property.Property;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
 public class FxController {
+    private static final Logger log = LoggerFactory.getLogger(FxController.class);
+
     @FXML
     private Label remoteAddressLabel;
     @FXML
@@ -42,26 +47,48 @@ public class FxController {
         this.modeProperty = new SimpleObjectProperty<>();
         this.sender = new SenderChannel();
         this.sender.addStateChangeListener(state -> {
-            stateComponent.stateObserverProperty().set(state);
-            area.setDisable(state != ChannelState.CONNECTED);
-            action.setDisable(state != ChannelState.DISCONNECTED
-                    && state != ChannelState.WAITING
-                    && state != ChannelState.CONNECTED);
-            modeProperty.setValue(state == ChannelState.CONNECTED ? Mode.SENDING : Mode.SEND);
+            Platform.runLater(() -> {
+                stateComponent.stateObserverProperty().set(state);
+                area.setDisable(state != ChannelState.CONNECTED);
+                action.setDisable(state != ChannelState.DISCONNECTED
+                        && state != ChannelState.WAITING
+                        && state != ChannelState.CONNECTED);
+                modeProperty.setValue(switch (state) {
+                    case CONNECTED -> Mode.SENDING;
+                    case WAITING -> Mode.WAITING;
+                    default -> Mode.SEND;
+                });
+            });
+
         });
         this.receiver = new ReceiverChannel();
         this.receiver.addStateChangeListener(state -> {
-            stateComponent.stateObserverProperty().set(state);
-            action.setDisable(state != ChannelState.DISCONNECTED
-                    && state != ChannelState.WAITING
-                    && state != ChannelState.CONNECTED);
-            modeProperty.setValue(state == ChannelState.CONNECTED ? Mode.RECEIVING : Mode.RECEIVE);
+            Platform.runLater(() -> {
+                stateComponent.stateObserverProperty().set(state);
+                action.setDisable(state != ChannelState.DISCONNECTED
+                        && state != ChannelState.WAITING
+                        && state != ChannelState.CONNECTED);
+                modeProperty.setValue(switch (state) {
+                    case CONNECTED -> Mode.SENDING;
+                    case WAITING -> Mode.WAITING;
+                    default -> Mode.SEND;
+                });
+            });
         });
         this.modeProperty.addListener((observable, oldValue, newValue) -> {
+            log.info("Mode: {}", newValue);
             action.setText(newValue.getActionText());
 //            remoteAddressInput.setDisable(!newValue.equals(Mode.RECEIVE));
             remoteAddressInput.setDisable(newValue.isSend());
         });
+    }
+
+    private void startKeyboardScanner() {
+        Thread.ofVirtual().start(keyboard::scan);
+    }
+
+    private void stopKeyboardScanner() {
+        Thread.ofVirtual().start(keyboard::stop);
     }
 
     public void initialize() {
@@ -73,9 +100,11 @@ public class FxController {
         area.focusedProperty().addListener((observable, oldValue, newValue) -> {
             if (ChannelState.CONNECTED.equals(sender.getState())) {
                 if (newValue) {
-                    keyboard.scan();
+                    startKeyboardScanner();
+                    log.info("Started keyboard scanner");
                 } else {
-                    keyboard.stop();
+                    stopKeyboardScanner();
+                    log.info("Stopped keyboard scanner");
                 }
             }
         });
@@ -86,6 +115,7 @@ public class FxController {
     @FXML
     private void onSendMode(ActionEvent event) {
         modeProperty.setValue(Mode.SEND);
+
     }
 
     @FXML
@@ -100,23 +130,31 @@ public class FxController {
                 case SEND -> {
                     var port = Integer.parseInt(remotePortInput.getText());
                     sender.open(port);
-                    keyboard.scan();
+                    log.info("Started sender on port {}", port);
+                    startKeyboardScanner();
+                    log.info("Started keyboard scanner");
+                }
+                case WAITING -> {
+                    sender.terminate();
+                    log.info("Stopped sender");
                 }
                 case SENDING -> {
                     sender.disconnect();
+                    log.info("Disconnected sender");
                 }
                 case RECEIVE -> {
                     var host = remoteAddressInput.getText();
                     var port = Integer.parseInt(remotePortInput.getText());
                     receiver.connect(host, port, keyboard::invoke);
+                    log.info("Started receiver listening on {}:{}", host, port);
                 }
                 case RECEIVING -> {
                     receiver.disconnect();
+                    log.info("Stopped receiver");
                 }
-                default -> System.err.println("error");
             }
         } catch (IOException ioe) {
-            System.err.println(ioe.getMessage());
+            log.error(ioe.getMessage(), ioe);
         }
     }
 

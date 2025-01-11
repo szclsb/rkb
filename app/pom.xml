@@ -11,10 +11,6 @@
 
     <artifactId>rkb-app</artifactId>
 
-    <properties>
-        <javafx.version>21.0.1</javafx.version>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>ch.szclsb.rkb</groupId>
@@ -25,6 +21,16 @@
             <groupId>ch.szclsb.rkb</groupId>
             <artifactId>rkb-connection</artifactId>
             <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+            <version>${logback.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>

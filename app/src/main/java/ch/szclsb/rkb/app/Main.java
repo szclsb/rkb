@@ -5,13 +5,18 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Optional;
 
+
 public class Main extends Application {
+    private static final Logger log = LoggerFactory.getLogger(Main.class);
+
     private URL find(String resource) throws IOException {
         return Optional.ofNullable(getClass().getResource(resource))
                 .orElseThrow(() -> new FileNotFoundException(resource));
@@ -32,7 +37,7 @@ public class Main extends Application {
             try {
                 controller.terminate();
             } catch (Exception e) {
-                e.printStackTrace();
+                log.error(e.getMessage(), e);
             }
         });
         primaryStage.show();
